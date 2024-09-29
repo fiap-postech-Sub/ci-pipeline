@@ -1,0 +1,55 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: ci-pipeline
+
+on: workflow_call
+
+jobs:
+  build:
+    name: CI-Pipeline - Continuous Integration
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build (if present)
+      run: npm run build --if-present
+    
+    - name: Run tests with coverage
+      run: npm test -- --coverage
+      env:
+        CI: true
+
+    - name: SonarCloud Scan
+      uses: sonarsource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      continue-on-error: false
+
+  devsecops:
+    name: DevSecOps-Pipeline - Security Tests
+    needs: build
+    uses: tshadz-fiap-postech-soat3/devsecops-pipeline/.github/workflows/devsecops-pipeline.yml@main
+    secrets: inherit
+
+  cd:
+    name: CD Pipeline - Continuous Delivery
+    needs: build
+    uses: tshadz-fiap-postech-soat3/cd-pipeline/.github/workflows/cd-pipeline.yml@main
+    secrets: inherit
